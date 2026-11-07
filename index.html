@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f766e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Daily Morbidity Form Tracker</title>
+<link rel="manifest" href="manifest.json">
+
+<!-- المكتبات -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" onerror="this.src='lib/xlsx.full.min.js'"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" onerror="this.src='lib/html2pdf.bundle.min.js'"></script>
+
+<style>
+  :root {
+    --primary: #0f766e;
+    --primary-dark: #115e59;
+    --primary-light: #ccfbf1;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: #cbd5e1;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; }
+  body { margin: 0; padding: 0; background: var(--bg); color: var(--text); padding-bottom: 40px; }
+
+  .app-header {
+    background: linear-gradient(135deg, #0f766e, #0d9488);
+    color: #fff; padding: 12px 16px; position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+  }
+  .header-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+  .app-title { font-size: 18px; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .badge-serial { background: #fef08a; color: #854d0e; padding: 4px 10px; border-radius: 999px; font-weight: 900; font-size: 14px; }
+
+  .controls-bar {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center;
+    background: rgba(255,255,255,0.12); padding: 8px 10px; border-radius: 10px;
+  }
+  .controls-bar label { font-size: 12px; font-weight: 700; }
+  .date-input { padding: 6px 10px; border-radius: 6px; border: none; font-weight: 700; font-size: 14px; color: #0f172a; background: #fff; }
+  .btn-action {
+    border: none; padding: 7px 12px; border-radius: 6px; font-weight: 700; font-size: 12px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px; color: #fff;
+  }
+  .btn-action:active { transform: scale(0.96); }
+  .btn-excel { background: #16a34a; }
+  .btn-pdf { background: #dc2626; }
+  .btn-print { background: #7c3aed; }
+  .btn-share { background: #2563eb; }
+  .btn-backup { background: #475569; }
+
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; max-width: 1200px; margin: 12px auto 0; padding: 0 12px; }
+  .tab-btn {
+    padding: 11px 8px; border: 2px solid var(--border); background: #fff; color: var(--muted);
+    border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; text-align: center;
+  }
+  .tab-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  .container { max-width: 1200px; margin: 12px auto; padding: 0 12px; }
+  .card { background: var(--card); border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+  .section-title { font-size: 14px; font-weight: 800; margin: 0 0 10px 0; color: #1e293b; display: flex; justify-content: space-between; align-items: center; }
+
+  .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  @media (min-width: 640px) { .grid-4 { grid-template-columns: repeat(4, 1fr); } }
+
+  .choice-btn {
+    padding: 12px 10px; border: 2px solid var(--border); border-radius: 10px; background: #f8fafc;
+    font-weight: 800; font-size: 14px; color: #334155; cursor: pointer; text-align: center; user-select: none;
+  }
+  .choice-btn.selected { background: var(--primary-light); border-color: var(--primary); color: var(--primary-dark); }
+  .choice-btn.female.selected { background: #fce7f3; border-color: #db2777; color: #9d174d; }
+  .choice-btn.male.selected { background: #dbeafe; border-color: #2563eb; color: #1e40af; }
+
+  .search-box { width: 100%; padding: 11px 12px; border: 2px solid var(--border); border-radius: 10px; font-size: 14px; font-weight: 700; margin-bottom: 10px; outline: none; }
+  .diag-list { max-height: 320px; overflow-y: auto; display: grid; grid-template-columns: 1fr; gap: 6px; padding: 4px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+  @media (min-width: 768px) { .diag-list { grid-template-columns: repeat(2, 1fr); } }
+  .diag-item { display: flex; align-items: center; gap: 8px; padding: 9px 10px; background: #fff; border: 2px solid #e2e8f0; border-radius: 8px; cursor: pointer; text-align: left; direction: ltr; font-size: 13px; font-weight: 700; color: #1e293b; }
+  .diag-item.selected { background: #fef9c3; border-color: #ca8a04; color: #713f12; }
+  .diag-num { background: #0f766e; color: #fff; min-width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px; }
+  .diag-item.selected .diag-num { background: #ca8a04; }
+
+  .submit-bar { background: #fff; border: 2px solid var(--primary); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .preview-pills { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; font-weight: 700; }
+  .pill { background: #e2e8f0; padding: 4px 8px; border-radius: 6px; color: #1e293b; }
+  .btn-save-case { width: 100%; padding: 14px; background: var(--primary); color: #fff; border: none; border-radius: 10px; font-size: 16px; font-weight: 900; cursor: pointer; }
+
+  /* تنسيق الجداول الرسمي والمضبوط للـ PDF */
+  .table-scroll { overflow-x: auto; border: 1px solid #475569; border-radius: 4px; margin-bottom: 14px; background: #fff; direction: ltr; }
+  table.morbidity-table { width: 100%; border-collapse: collapse; font-size: 10.5px; direction: ltr; text-align: center; table-layout: auto; }
+  table.morbidity-table tr { page-break-inside: avoid; break-inside: avoid; }
+  table.morbidity-table th, table.morbidity-table td {
+    border: 1px solid #334155; padding: 3px 4px; white-space: nowrap; color: #0f172a;
+  }
+  table.morbidity-table th { font-weight: 800; background: #e2e8f0; }
+  .th-new { background: #bae6fd !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .th-follow { background: #fed7aa !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .th-total { background: #fde047 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .th-special { background: #e9d5ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .cat-row td { background: #cbd5e1 !important; font-weight: 900; text-align: left !important; padding-left: 8px !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .subcat-row td { background: #e2e8f0 !important; font-weight: 800; text-align: left !important; padding-left: 12px !important; font-style: italic; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .cell-nz { background: #dcfce7 !important; font-weight: 900; color: #14532d !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .diag-name-cell { text-align: left !important; padding-left: 6px !important; font-weight: 700; min-width: 185px; white-space: normal !important; }
+
+  /* وضع التصدير إلى PDF لمنع قص الجداول أو تداخلها */
+  .pdf-export-mode {
+    width: 1550px !important;
+    max-width: 1550px !important;
+    padding: 15px !important;
+    background: #ffffff !important;
+    direction: ltr !important;
+  }
+  .pdf-export-mode .table-scroll {
+    overflow: visible !important;
+    border: none !important;
+  }
+  .pdf-export-mode table.morbidity-table {
+    width: 100% !important;
+    font-size: 9.5px !important;
+  }
+  .pdf-export-mode table.morbidity-table th,
+  .pdf-export-mode table.morbidity-table td {
+    padding: 2.5px 3px !important;
+  }
+
+  /* إعدادات الطباعة وحفظ PDF المباشر من المتصفح */
+  @media print {
+    @page { size: A3 landscape; margin: 6mm; }
+    body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+    .app-header, .tabs, #tab-entry, #tab-log, .no-print { display: none !important; }
+    .container { max-width: 100% !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
+    #tab-report { display: block !important; }
+    #printableReportArea { width: 100% !important; padding: 0 !important; direction: ltr !important; }
+    .table-scroll { overflow: visible !important; border: none !important; margin-bottom: 10px !important; }
+    table.morbidity-table { width: 100% !important; font-size: 8.5pt !important; }
+    table.morbidity-table th, table.morbidity-table td { padding: 2px 3px !important; }
+  }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: #0f172a; color: #fff; padding: 10px 18px; border-radius: 999px;
+    font-weight: 800; font-size: 13px; z-index: 9999; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="toast" class="toast"></div>
+
+<header class="app-header">
+  <div class="header-top">
+    <h1 class="app-title">🏥 Daily Morbidity Tracker</h1>
+    <div>
+      <span class="badge-serial" id="nextSerialBadge">الحالة القادمة: #1</span>
+    </div>
+  </div>
+  <div class="controls-bar">
+    <label>📅 التاريخ:</label>
+    <input type="date" id="workDate" class="date-input" onchange="onDateChange()">
+    <span id="dayNameLabel" style="font-size:12px; font-weight:800; color:#fef08a;"></span>
+    <div style="flex:1"></div>
+    <button class="btn-action btn-excel" onclick="exportExcel(false)">📊 تحميل Excel</button>
+    <button class="btn-action btn-share" onclick="exportExcel(true)">📤 مشاركة Excel</button>
+    <button class="btn-action btn-pdf" onclick="exportPDF(false)">📄 تحميل PDF</button>
+    <button class="btn-action btn-print" onclick="printNativePDF()">🖨️ طباعة PDF دقيقة</button>
+    <button class="btn-action btn-backup" onclick="downloadBackup()">💾 نسخ احتياطي</button>
+    <button class="btn-action btn-backup" onclick="document.getElementById('restoreInput').click()">📂 استعادة</button>
+    <input type="file" id="restoreInput" accept=".json" class="hidden" onchange="restoreBackup(event)">
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" id="tabBtnEntry" onclick="switchTab('entry')">➕ إدخال حالة</button>
+  <button class="tab-btn" id="tabBtnReport" onclick="switchTab('report')">📊 جداول النتائج (<span id="countReport">0</span>)</button>
+  <button class="tab-btn" id="tabBtnLog" onclick="switchTab('log')">📋 السجل اليومي (<span id="countLog">0</span>)</button>
+</div>
+
+<div class="container">
+  <!-- تبويب الإدخال -->
+  <div id="tab-entry">
+    <div class="card">
+      <div class="section-title"><span>1. الجنس (Gender)</span></div>
+      <div class="grid-2">
+        <div class="choice-btn female" data-group="gender" data-val="Female" onclick="selectOption('gender','Female')">👩 Female (أنثى)</div>
+        <div class="choice-btn male" data-group="gender" data-val="Male" onclick="selectOption('gender','Male')">👨 Male (ذكر)</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span>2. الفئة العمرية (Age Group)</span></div>
+      <div class="grid-3">
+        <div class="choice-btn" data-group="ageGroup" data-val="0-6 months" onclick="selectOption('ageGroup','0-6 months')">0-6 months</div>
+        <div class="choice-btn" data-group="ageGroup" data-val="7-59 months" onclick="selectOption('ageGroup','7-59 months')">7-59 months</div>
+        <div class="choice-btn" data-group="ageGroup" data-val="5-14 years" onclick="selectOption('ageGroup','5-14 years')">5-14 years</div>
+        <div class="choice-btn" data-group="ageGroup" data-val="15-18 years" onclick="selectOption('ageGroup','15-18 years')">15-18 years</div>
+        <div class="choice-btn" data-group="ageGroup" data-val="19-49 years" onclick="selectOption('ageGroup','19-49 years')">19-49 years</div>
+        <div class="choice-btn" data-group="ageGroup" data-val=">= 50 years" onclick="selectOption('ageGroup','>= 50 years')">&ge; 50 years</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span>3. نوع الحالة (Case Type)</span></div>
+      <div class="grid-2">
+        <div class="choice-btn selected" data-group="caseType" data-val="New" onclick="selectOption('caseType','New')">🆕 New Case (حالة جديدة)</div>
+        <div class="choice-btn" data-group="caseType" data-val="Follow up" onclick="selectOption('caseType','Follow up')">🔄 Follow up (متابعة)</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title"><span>4. الفئات الخاصة (Special Groups)</span></div>
+      <div class="grid-4">
+        <div class="choice-btn selected" data-group="specialGroup" data-val="Non" onclick="selectOption('specialGroup','Non')">Non (عادي)</div>
+        <div class="choice-btn" data-group="specialGroup" data-val="IDPs" onclick="selectOption('specialGroup','IDPs')">⛺ IDPs (نازحين)</div>
+        <div class="choice-btn" data-group="specialGroup" data-val="Migrants" onclick="selectOption('specialGroup','Migrants')">🌍 Migrants (مهاجرين)</div>
+        <div class="choice-btn" data-group="specialGroup" data-val="Disability" onclick="selectOption('specialGroup','Disability')">♿ Disability (إعاقة)</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title">
+        <span>5. التشخيص (Diagnosis 1 - 55)</span>
+        <span id="selectedDiagBadge" style="color:var(--primary); font-size:12px;">لم يتم الاختيار</span>
+      </div>
+      <input type="text" id="diagSearch" class="search-box" placeholder="🔍 ابحث برقم التشخيص (1-55) أو الاسم بالإنجليزية..." oninput="renderDiagList()">
+      <div id="diagListContainer" class="diag-list"></div>
+    </div>
+
+    <div class="submit-bar">
+      <div class="preview-pills" id="livePreviewPills"></div>
+      <button class="btn-save-case" onclick="saveCase()">✅ حفظ الحالة وتسجيل رقم جديد</button>
+    </div>
+  </div>
+
+  <!-- تبويب جداول النتائج والاستمارة -->
+  <div id="tab-report" class="hidden">
+    <div class="card no-print" style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between;">
+      <div>
+        <strong>نطاق عرض التقرير:</strong>
+        <select id="reportScope" onchange="renderReports()" style="padding:6px 10px; border-radius:6px; font-weight:700;">
+          <option value="day">اليوم المحدد فقط</option>
+          <option value="all">جميع الأيام المسجلة (تراكمي)</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="btn-action btn-excel" onclick="exportExcel(false)">📊 تحميل Excel</button>
+        <button class="btn-action btn-share" onclick="exportExcel(true)">📤 مشاركة Excel</button>
+        <button class="btn-action btn-pdf" onclick="exportPDF(false)">📄 تحميل PDF</button>
+        <button class="btn-action btn-share" onclick="exportPDF(true)">📤 مشاركة PDF</button>
+        <button class="btn-action btn-print" onclick="printNativePDF()">🖨️ طباعة / حفظ PDF أصلي</button>
+      </div>
+    </div>
+
+    <div id="printableReportArea" style="background:#fff; padding:12px; border-radius:8px; direction:ltr;">
+      <div style="text-align:center; margin-bottom:10px; border-bottom:2px solid #0f172a; padding-bottom:6px;">
+        <h2 style="margin:0; font-size:18px; color:#0f172a;">DAILY MORBIDITY FORM</h2>
+        <div id="reportHeaderMeta" style="font-size:12px; font-weight:800; color:#334155; margin-top:4px;"></div>
+      </div>
+
+      <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; justify-content:space-between; margin-bottom:10px;">
+        <div style="flex:2; min-width:550px;">
+          <h3 style="font-size:12px; margin:4px 0; text-align:left; color:#0f172a;">1. Beneficiaries Summary (NEW BENEFICIARIES & FOLLOW UP)</h3>
+          <div class="table-scroll" id="beneficiariesTableWrap" style="margin-bottom:0;"></div>
+        </div>
+        <div style="flex:1; min-width:340px;">
+          <h3 style="font-size:12px; margin:4px 0; text-align:left; color:#0f172a;">2. Special Groups (0-18 Y & &ge;18 Y)</h3>
+          <div class="table-scroll" id="specialGroupsTableWrap" style="margin-bottom:0;"></div>
+        </div>
+      </div>
+
+      <h3 style="font-size:12px; margin:8px 0 4px; text-align:left; color:#0f172a;">3. Daily Morbidity Matrix (Diagnoses 1 - 55)</h3>
+      <div class="table-scroll" id="morbidityMatrixWrap"></div>
+    </div>
+  </div>
+
+  <!-- تبويب السجل اليومي -->
+  <div id="tab-log" class="hidden">
+    <div class="card">
+      <div class="section-title">
+        <span>سجل الحالات المدخلة لليوم المحدد</span>
+        <button class="btn-action btn-pdf" onclick="clearCurrentDayCases()">🗑️ مسح حالات هذا اليوم</button>
+      </div>
+      <div class="table-scroll" style="direction:rtl;">
+        <table class="morbidity-table" style="direction:rtl; text-align:center; font-size:13px;">
+          <thead>
+            <tr>
+              <th># التسلسل</th>
+              <th>الوقت</th>
+              <th>التاريخ</th>
+              <th>الجنس</th>
+              <th>الفئة العمرية</th>
+              <th>نوع الحالة</th>
+              <th>الفئة الخاصة</th>
+              <th>التشخيص</th>
+              <th>حذف</th>
+            </tr>
+          </thead>
+          <tbody id="dailyLogTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const AGE_GROUPS = ['0-6 months', '7-59 months', '5-14 years', '15-18 years', '19-49 years', '>= 50 years'];
+const AGE_LABELS_SHORT = ['0-6 M', '7-59 M', '5Y-14Y', '15Y-18Y', '19Y-49Y', '≥ 50Y'];
+const UNDER_18_AGES = ['0-6 months', '7-59 months', '5-14 years', '15-18 years'];
+const OVER_18_AGES = ['19-49 years', '>= 50 years'];
+const SPECIAL_GROUPS = ['IDPs', 'Migrants', 'Disability', 'Non'];
+
+const DIAGNOSES = [
+  { id: 1, name: "Upper Respiratory Tract Infection", cat: "A", sub: "a" },
+  { id: 2, name: "Lower Respiratory Tract Infection", cat: "A", sub: "a" },
+  { id: 3, name: "Influenza Like Illness (ILI)", cat: "A", sub: "a" },
+  { id: 4, name: "Severe Acute Respiratory Infections (SARI)", cat: "A", sub: "a" },
+  { id: 5, name: "Suspected COVID-19", cat: "A", sub: "a" },
+  { id: 6, name: "Suspected Pertussis", cat: "A", sub: "a" },
+  { id: 7, name: "Suspected Diphtheria", cat: "A", sub: "a" },
+  { id: 8, name: "Acute Watery Diarrhea / Cholera Suspicion", cat: "A", sub: "a" },
+  { id: 9, name: "Other, Acute Diarrhea", cat: "A", sub: "a" },
+  { id: 10, name: "Bloody Diarrhea", cat: "A", sub: "a" },
+  { id: 11, name: "Acute Flaccid Paralysis", cat: "A", sub: "a" },
+  { id: 12, name: "Measles Suspicion", cat: "A", sub: "a" },
+  { id: 13, name: "Suspected Viral Hepatitis A & E", cat: "A", sub: "a" },
+  { id: 14, name: "Tetanus Neonatorum", cat: "A", sub: "a" },
+  { id: 15, name: "Suspected Mumps", cat: "A", sub: "a" },
+  { id: 16, name: "Suspected Malaria", cat: "A", sub: "a" },
+  { id: 17, name: "Dengue Fever", cat: "A", sub: "a" },
+  { id: 18, name: "Acute Haemorrhagic Fever", cat: "A", sub: "a" },
+  { id: 19, name: "Typhoid & Paratyphoid Fever", cat: "A", sub: "a" },
+  { id: 20, name: "Brucellosis", cat: "A", sub: "a" },
+  { id: 21, name: "Meningitis Suspicion", cat: "A", sub: "a" },
+  { id: 22, name: "Tuberculosis Suspicion", cat: "A", sub: "a" },
+  { id: 23, name: "Cutaneous Leishmaniasis", cat: "A", sub: "a" },
+  { id: 24, name: "Schistosomiasis", cat: "A", sub: "a" },
+  { id: 25, name: "Suspected Rabies", cat: "A", sub: "a" },
+  { id: 26, name: "Chicken Pox – Varicella Zoster", cat: "A", sub: "a" },
+  { id: 27, name: "Pediculosis/Scabies", cat: "A", sub: "a" },
+  { id: 28, name: "HIV/AIDS", cat: "A", sub: "a" },
+  { id: 29, name: "Guinea Worm", cat: "A", sub: "a" },
+  { id: 30, name: "Skin Infection Other Than Scabies", cat: "A", sub: "b" },
+  { id: 31, name: "Eye Infection", cat: "A", sub: "b" },
+  { id: 32, name: "Intestinal Worms", cat: "A", sub: "b" },
+  { id: 33, name: "Urinary Tract Infections", cat: "A", sub: "b" },
+  { id: 34, name: "Other Infectious Diseases", cat: "A", sub: "b" },
+  { id: 35, name: "Anemia", cat: "B" },
+  { id: 36, name: "Skin Diseases Other Than Infectious", cat: "B" },
+  { id: 37, name: "Eye Diseases Other Than Infectious", cat: "B" },
+  { id: 38, name: "Dental Condition", cat: "B" },
+  { id: 39, name: "Gastritis/Peptic Ulcer Conditions", cat: "B" },
+  { id: 40, name: "Renal Diseases Other Than Infectious", cat: "B" },
+  { id: 41, name: "Heart Disease", cat: "B" },
+  { id: 42, name: "Hypertension", cat: "B" },
+  { id: 43, name: "Diabetes Mellitus", cat: "B" },
+  { id: 44, name: "Asthma", cat: "B" },
+  { id: 45, name: "Chronic Obstructive Pulmonary Disease", cat: "B" },
+  { id: 46, name: "Musculoskeletal Disease", cat: "B" },
+  { id: 47, name: "Other Non-Infectious Diseases", cat: "B" },
+  { id: 48, name: "Pregnancy-Related Disorders", cat: "C" },
+  { id: 49, name: "Gynecological Conditions", cat: "C" },
+  { id: 50, name: "Wounds/Injuries", cat: "D" },
+  { id: 51, name: "Burns", cat: "D" },
+  { id: 52, name: "Animal Bite", cat: "D" },
+  { id: 53, name: "Suspected Mental Health Conditions", cat: "E" },
+  { id: 54, name: "Malnutrition", cat: "E" },
+  { id: 55, name: "Others", cat: "E" }
+];
+
+const STORAGE_KEY = 'MORBIDITY_RECORDS_V4';
+let allCases = [];
+let currentForm = { gender: '', ageGroup: '', caseType: 'New', specialGroup: 'Non', diagId: null };
+
+function saveToStorage() {
+  const json = JSON.stringify(allCases);
+  try { localStorage.setItem(STORAGE_KEY, json); } catch(e){}
+  try { window.name = json; } catch(e){}
+  try {
+    const req = indexedDB.open('MorbidityDB', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('store');
+    req.onsuccess = e => {
+      const tx = e.target.result.transaction('store', 'readwrite');
+      tx.objectStore('store').put(json, 'records');
+    };
+  } catch(e){}
+}
+
+function loadFromStorage(cb) {
+  let loaded = false;
+  try {
+    const ls = localStorage.getItem(STORAGE_KEY);
+    if (ls) { allCases = JSON.parse(ls); loaded = true; }
+  } catch(e){}
+  if (!loaded && window.name && window.name.startsWith('[')) {
+    try { allCases = JSON.parse(window.name); loaded = true; } catch(e){}
+  }
+  try {
+    const req = indexedDB.open('MorbidityDB', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('store');
+    req.onsuccess = e => {
+      const tx = e.target.result.transaction('store', 'readonly');
+      const getReq = tx.objectStore('store').get('records');
+      getReq.onsuccess = () => {
+        if (getReq.result) {
+          const idbData = JSON.parse(getReq.result);
+          if (idbData.length > allCases.length) {
+            allCases = idbData;
+            try { localStorage.setItem(STORAGE_KEY, getReq.result); } catch(err){}
+          }
+        }
+        cb();
+      };
+      getReq.onerror = () => cb();
+    };
+    req.onerror = () => cb();
+  } catch(e) { cb(); }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => { t.style.display = 'none'; }, 2800);
+}
+
+function getArabicDayName(dateStr) {
+  const days = ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+  const d = new Date(dateStr + 'T00:00:00');
+  return isNaN(d) ? '' : days[d.getDay()];
+}
+
+function initApp() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('workDate').value = today;
+  loadFromStorage(() => {
+    onDateChange();
+    renderDiagList();
+    updateLivePreview();
+  });
+}
+
+function onDateChange() {
+  const dateStr = document.getElementById('workDate').value;
+  document.getElementById('dayNameLabel').textContent = getArabicDayName(dateStr);
+  updateCountsAndSerial();
+  renderDailyLog();
+  renderReports();
+}
+
+function getDayCases() {
+  const dateStr = document.getElementById('workDate').value;
+  return allCases.filter(c => c.date === dateStr);
+}
+
+function updateCountsAndSerial() {
+  const dayCases = getDayCases();
+  document.getElementById('nextSerialBadge').textContent = `الحالة القادمة: #${dayCases.length + 1}`;
+  document.getElementById('countReport').textContent = dayCases.length;
+  document.getElementById('countLog').textContent = dayCases.length;
+}
+
+function selectOption(group, val) {
+  currentForm[group] = val;
+  document.querySelectorAll(`.choice-btn[data-group="${group}"]`).forEach(btn => {
+    btn.classList.toggle('selected', btn.getAttribute('data-val') === val);
+  });
+  updateLivePreview();
+}
+
+function selectDiagnosis(id) {
+  currentForm.diagId = id;
+  const d = DIAGNOSES.find(x => x.id === id);
+  document.getElementById('selectedDiagBadge').textContent = d ? `#${d.id} ${d.name}` : 'لم يتم الاختيار';
+  renderDiagList();
+  updateLivePreview();
+}
+
+function renderDiagList() {
+  const q = (document.getElementById('diagSearch').value || '').trim().toLowerCase();
+  const container = document.getElementById('diagListContainer');
+  const filtered = DIAGNOSES.filter(d => !q || String(d.id) === q || String(d.id).startsWith(q) || d.name.toLowerCase().includes(q));
+  container.innerHTML = filtered.map(d => `
+    <div class="diag-item ${currentForm.diagId === d.id ? 'selected' : ''}" onclick="selectDiagnosis(${d.id})">
+      <span class="diag-num">${d.id}</span>
+      <span>${d.name}</span>
+    </div>
+  `).join('');
+}
+
+function updateLivePreview() {
+  const d = DIAGNOSES.find(x => x.id === currentForm.diagId);
+  const pills = [
+    `الجنس: ${currentForm.gender || '—'}`,
+    `العمر: ${currentForm.ageGroup || '—'}`,
+    `النوع: ${currentForm.caseType}`,
+    `الفئة: ${currentForm.specialGroup}`,
+    `التشخيص: ${d ? ('#' + d.id + ' ' + d.name) : '—'}`
+  ];
+  document.getElementById('livePreviewPills').innerHTML = pills.map(p => `<span class="pill">${p}</span>`).join('');
+}
+
+function saveCase() {
+  if (!currentForm.gender) { showToast('⚠️ يرجى اختيار الجنس (Gender)'); return; }
+  if (!currentForm.ageGroup) { showToast('⚠️ يرجى اختيار الفئة العمرية (Age Group)'); return; }
+  if (!currentForm.diagId) { showToast('⚠️ يرجى اختيار التشخيص (Diagnosis)'); return; }
+
+  const dateStr = document.getElementById('workDate').value;
+  const dayCases = getDayCases();
+  const serial = dayCases.length + 1;
+  const timeStr = new Date().toTimeString().split(' ')[0].slice(0,5);
+  const diagObj = DIAGNOSES.find(x => x.id === currentForm.diagId);
+
+  allCases.push({
+    uid: Date.now() + '_' + Math.random().toString(36).slice(2,7),
+    serial, date: dateStr, dayName: getArabicDayName(dateStr), time: timeStr,
+    gender: currentForm.gender, ageGroup: currentForm.ageGroup,
+    caseType: currentForm.caseType, specialGroup: currentForm.specialGroup,
+    diagId: diagObj.id, diagName: diagObj.name
+  });
+  saveToStorage();
+
+  currentForm.gender = '';
+  currentForm.ageGroup = '';
+  currentForm.caseType = 'New';
+  currentForm.specialGroup = 'Non';
+  currentForm.diagId = null;
+  document.getElementById('diagSearch').value = '';
+  document.getElementById('selectedDiagBadge').textContent = 'لم يتم الاختيار';
+  document.querySelectorAll('.choice-btn[data-group="gender"], .choice-btn[data-group="ageGroup"]').forEach(b => b.classList.remove('selected'));
+  selectOption('caseType', 'New');
+  selectOption('specialGroup', 'Non');
+  renderDiagList();
+  updateCountsAndSerial();
+  renderDailyLog();
+  renderReports();
+  showToast(`✅ تم حفظ الحالة رقم #${serial} بنجاح`);
+}
+
+function switchTab(tab) {
+  ['entry','report','log'].forEach(t => document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab));
+  document.getElementById('tabBtnEntry').classList.toggle('active', tab === 'entry');
+  document.getElementById('tabBtnReport').classList.toggle('active', tab === 'report');
+  document.getElementById('tabBtnLog').classList.toggle('active', tab === 'log');
+  if (tab === 'report') renderReports();
+  if (tab === 'log') renderDailyLog();
+}
+
+function renderDailyLog() {
+  const dayCases = getDayCases();
+  const tbody = document.getElementById('dailyLogTbody');
+  if (!dayCases.length) {
+    tbody.innerHTML = `<tr><td colspan="9" style="padding:16px; color:#64748b;">لا توجد حالات مسجلة في هذا التاريخ</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = dayCases.map(c => `
+    <tr>
+      <td><strong>#${c.serial}</strong></td>
+      <td>${c.time}</td>
+      <td>${c.date} (${c.dayName})</td>
+      <td>${c.gender}</td>
+      <td dir="ltr">${c.ageGroup}</td>
+      <td>${c.caseType}</td>
+      <td>${c.specialGroup}</td>
+      <td dir="ltr" style="text-align:left;"><strong>#${c.diagId}</strong> - ${c.diagName}</td>
+      <td><button class="btn-action btn-pdf" style="padding:3px 8px;" onclick="deleteCase('${c.uid}')">حذف</button></td>
+    </tr>
+  `).join('');
+}
+
+function deleteCase(uid) {
+  const dateStr = document.getElementById('workDate').value;
+  allCases = allCases.filter(c => c.uid !== uid);
+  let s = 1;
+  allCases.forEach(c => { if (c.date === dateStr) c.serial = s++; });
+  saveToStorage();
+  updateCountsAndSerial();
+  renderDailyLog();
+  renderReports();
+  showToast('🗑️ تم حذف الحالة');
+}
+
+function clearCurrentDayCases() {
+  const dateStr = document.getElementById('workDate').value;
+  if (!confirm(`هل أنت متأكد من مسح جميع حالات يوم ${dateStr}؟`)) return;
+  allCases = allCases.filter(c => c.date !== dateStr);
+  saveToStorage();
+  updateCountsAndSerial();
+  renderDailyLog();
+  renderReports();
+  showToast('🗑️ تم مسح حالات اليوم');
+}
+
+function getScopedCases() {
+  const scope = document.getElementById('reportScope') ? document.getElementById('reportScope').value : 'day';
+  const dateStr = document.getElementById('workDate').value;
+  return scope === 'all' ? allCases : allCases.filter(c => c.date === dateStr);
+}
+
+function nz(val) {
+  return val > 0 ? `<td class="cell-nz">${val}</td>` : `<td>0</td>`;
+}
+
+function renderReports() {
+  const cases = getScopedCases();
+  const dateStr = document.getElementById('workDate').value;
+  const scope = document.getElementById('reportScope').value;
+  document.getElementById('reportHeaderMeta').textContent =
+    scope === 'day'
+      ? `DATE: ${dateStr} (${getArabicDayName(dateStr)}) | TOTAL CASES: ${cases.length}`
+      : `CUMULATIVE REPORT (ALL DAYS) | TOTAL CASES: ${cases.length}`;
+
+  // 1. Beneficiaries Summary
+  let benHtml = `<table class="morbidity-table">
+    <thead>
+      <tr>
+        <th rowspan="2">Gender</th>
+        <th colspan="6" class="th-new">NEW BENEFICIARIES</th>
+        <th rowspan="2" class="th-total">Total</th>
+        <th colspan="6" class="th-follow">FOLLOW UP</th>
+        <th rowspan="2" class="th-total">Total</th>
+        <th rowspan="2" class="th-total">Total</th>
+      </tr>
+      <tr>
+        ${AGE_LABELS_SHORT.map(a => `<th class="th-new">${a}</th>`).join('')}
+        ${AGE_LABELS_SHORT.map(a => `<th class="th-follow">${a}</th>`).join('')}
+      </tr>
+    </thead>
+    <tbody>`;
+
+  ['Female', 'Male'].forEach(g => {
+    const gShort = g === 'Female' ? 'F' : 'M';
+    let newTotal = 0, folTotal = 0;
+    const newCells = AGE_GROUPS.map(ag => {
+      const cnt = cases.filter(c => c.gender === g && c.caseType === 'New' && c.ageGroup === ag).length;
+      newTotal += cnt;
+      return nz(cnt);
+    }).join('');
+    const folCells = AGE_GROUPS.map(ag => {
+      const cnt = cases.filter(c => c.gender === g && c.caseType === 'Follow up' && c.ageGroup === ag).length;
+      folTotal += cnt;
+      return nz(cnt);
+    }).join('');
+    benHtml += `<tr>
+      <td><strong>${gShort}</strong></td>
+      ${newCells}
+      <td class="th-total"><strong>${newTotal}</strong></td>
+      ${folCells}
+      <td class="th-total"><strong>${folTotal}</strong></td>
+      <td class="th-total"><strong>${newTotal + folTotal}</strong></td>
+    </tr>`;
+  });
+  benHtml += `</tbody></table>`;
+  document.getElementById('beneficiariesTableWrap').innerHTML = benHtml;
+
+  // 2. Special Groups Summary
+  let specHtml = `<table class="morbidity-table">
+    <thead>
+      <tr>
+        <th rowspan="2" class="th-special">Special Groups</th>
+        <th colspan="2" class="th-special">0 - 18 Y</th>
+        <th colspan="2" class="th-special">&ge; 18 Y</th>
+        <th rowspan="2" class="th-total">Total</th>
+      </tr>
+      <tr>
+        <th>F</th><th>M</th><th>F</th><th>M</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  SPECIAL_GROUPS.forEach(sg => {
+    const u18F = cases.filter(c => c.specialGroup === sg && UNDER_18_AGES.includes(c.ageGroup) && c.gender === 'Female').length;
+    const u18M = cases.filter(c => c.specialGroup === sg && UNDER_18_AGES.includes(c.ageGroup) && c.gender === 'Male').length;
+    const o18F = cases.filter(c => c.specialGroup === sg && OVER_18_AGES.includes(c.ageGroup) && c.gender === 'Female').length;
+    const o18M = cases.filter(c => c.specialGroup === sg && OVER_18_AGES.includes(c.ageGroup) && c.gender === 'Male').length;
+    const tot = u18F + u18M + o18F + o18M;
+    specHtml += `<tr>
+      <td style="text-align:left; font-weight:800; padding-left:8px;">${sg}</td>
+      ${nz(u18F)}${nz(u18M)}${nz(o18F)}${nz(o18M)}
+      <td class="th-total"><strong>${tot}</strong></td>
+    </tr>`;
+  });
+  specHtml += `</tbody></table>`;
+  document.getElementById('specialGroupsTableWrap').innerHTML = specHtml;
+
+  // 3. Daily Morbidity Matrix (1-55)
+  let matHtml = `<table class="morbidity-table">
+    <thead>
+      <tr>
+        <th rowspan="3">#</th>
+        <th rowspan="3">Diagnosis</th>
+        <th colspan="12" class="th-new">NEW CASES</th>
+        <th colspan="12" class="th-follow">FOLLOW UP CASES</th>
+        <th colspan="3" rowspan="2" class="th-total">TOTAL</th>
+        <th colspan="8" class="th-special">SPECIAL GROUPS (F / M)</th>
+      </tr>
+      <tr>
+        ${AGE_LABELS_SHORT.map(a => `<th colspan="2" class="th-new">${a}</th>`).join('')}
+        ${AGE_LABELS_SHORT.map(a => `<th colspan="2" class="th-follow">${a}</th>`).join('')}
+        <th colspan="2" class="th-special">IDPs</th>
+        <th colspan="2" class="th-special">Migrants</th>
+        <th colspan="2" class="th-special">Disability</th>
+        <th colspan="2" class="th-special">Non</th>
+      </tr>
+      <tr>
+        ${AGE_GROUPS.map(() => `<th>F</th><th>M</th>`).join('')}
+        ${AGE_GROUPS.map(() => `<th>F</th><th>M</th>`).join('')}
+        <th class="th-total">F</th><th class="th-total">M</th><th class="th-total">ALL</th>
+        <th>F</th><th>M</th><th>F</th><th>M</th><th>F</th><th>M</th><th>F</th><th>M</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  const colSums = new Array(35).fill(0);
+
+  DIAGNOSES.forEach(d => {
+    if (d.id === 1) {
+      matHtml += `<tr class="cat-row"><td colspan="37">A. Communicable Diseases</td></tr>`;
+      matHtml += `<tr class="subcat-row"><td colspan="37">a. Notifiable Diseases</td></tr>`;
+    } else if (d.id === 30) {
+      matHtml += `<tr class="subcat-row"><td colspan="37">b. Other Infectious / Communicable Diseases</td></tr>`;
+    } else if (d.id === 35) {
+      matHtml += `<tr class="cat-row"><td colspan="37">B. Non-Communicable Diseases</td></tr>`;
+    } else if (d.id === 48) {
+      matHtml += `<tr class="cat-row"><td colspan="37">C. Reproductive Health</td></tr>`;
+    } else if (d.id === 50) {
+      matHtml += `<tr class="cat-row"><td colspan="37">D. Trauma-Related Injuries</td></tr>`;
+    } else if (d.id === 53) {
+      matHtml += `<tr class="cat-row"><td colspan="37">E. Others</td></tr>`;
+    }
+
+    const dCases = cases.filter(c => c.diagId === d.id);
+    let rowVals = [];
+
+    AGE_GROUPS.forEach(ag => {
+      rowVals.push(dCases.filter(c => c.caseType === 'New' && c.ageGroup === ag && c.gender === 'Female').length);
+      rowVals.push(dCases.filter(c => c.caseType === 'New' && c.ageGroup === ag && c.gender === 'Male').length);
+    });
+    AGE_GROUPS.forEach(ag => {
+      rowVals.push(dCases.filter(c => c.caseType === 'Follow up' && c.ageGroup === ag && c.gender === 'Female').length);
+      rowVals.push(dCases.filter(c => c.caseType === 'Follow up' && c.ageGroup === ag && c.gender === 'Male').length);
+    });
+    const totF = dCases.filter(c => c.gender === 'Female').length;
+    const totM = dCases.filter(c => c.gender === 'Male').length;
+    rowVals.push(totF, totM, totF + totM);
+
+    SPECIAL_GROUPS.forEach(sg => {
+      rowVals.push(dCases.filter(c => c.specialGroup === sg && c.gender === 'Female').length);
+      rowVals.push(dCases.filter(c => c.specialGroup === sg && c.gender === 'Male').length);
+    });
+
+    rowVals.forEach((v, i) => colSums[i] += v);
+
+    matHtml += `<tr>
+      <td><strong>${d.id}</strong></td>
+      <td class="diag-name-cell">${d.name}</td>
+      ${rowVals.map(v => nz(v)).join('')}
+    </tr>`;
+  });
+
+  matHtml += `<tr style="background:#fde047; font-weight:900;">
+    <td colspan="2">Total</td>
+    ${colSums.map(v => `<td>${v}</td>`).join('')}
+  </tr></tbody></table>`;
+
+  document.getElementById('morbidityMatrixWrap').innerHTML = matHtml;
+}
+
+async function shareOrDownloadBlob(blob, filename, mimeType, forceShare) {
+  const file = new File([blob], filename, { type: mimeType });
+  if (forceShare && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: filename, text: 'Daily Morbidity Report' });
+      showToast('📤 تمت مشاركة الملف بنجاح');
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1500);
+  showToast('📥 تم تنزيل الملف: ' + filename);
+}
+
+function exportExcel(forceShare) {
+  if (typeof XLSX === 'undefined') { showToast('⚠️ مكتبة الإكسل غير محملة'); return; }
+  const cases = getScopedCases();
+  const dateStr = document.getElementById('workDate').value;
+  const wb = XLSX.utils.book_new();
+
+  const logRows = [['Serial #', 'Date', 'Day', 'Time', 'Gender', 'Age Group', 'Case Type', 'Special Group', 'Diagnosis #', 'Diagnosis Name']];
+  cases.forEach(c => logRows.push([c.serial, c.date, c.dayName, c.time, c.gender, c.ageGroup, c.caseType, c.specialGroup, c.diagId, c.diagName]));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(logRows), 'Daily Cases Log');
+
+  const sumRows = [
+    ['1. NEW BENEFICIARIES & FOLLOW UP SUMMARY'],
+    ['Gender', ...AGE_LABELS_SHORT.map(a => 'New ' + a), 'Total New', ...AGE_LABELS_SHORT.map(a => 'FollowUp ' + a), 'Total FollowUp', 'Grand Total']
+  ];
+  ['Female', 'Male'].forEach(g => {
+    const newArr = AGE_GROUPS.map(ag => cases.filter(c => c.gender === g && c.caseType === 'New' && c.ageGroup === ag).length);
+    const folArr = AGE_GROUPS.map(ag => cases.filter(c => c.gender === g && c.caseType === 'Follow up' && c.ageGroup === ag).length);
+    const nSum = newArr.reduce((a,b)=>a+b,0), fSum = folArr.reduce((a,b)=>a+b,0);
+    sumRows.push([g === 'Female' ? 'F' : 'M', ...newArr, nSum, ...folArr, fSum, nSum + fSum]);
+  });
+  sumRows.push([], ['2. SPECIAL GROUPS SUMMARY (0-18 Y & >= 18 Y)'], ['Special Group', '0-18Y (F)', '0-18Y (M)', '>=18Y (F)', '>=18Y (M)', 'Total']);
+  SPECIAL_GROUPS.forEach(sg => {
+    const u18F = cases.filter(c => c.specialGroup === sg && UNDER_18_AGES.includes(c.ageGroup) && c.gender === 'Female').length;
+    const u18M = cases.filter(c => c.specialGroup === sg && UNDER_18_AGES.includes(c.ageGroup) && c.gender === 'Male').length;
+    const o18F = cases.filter(c => c.specialGroup === sg && OVER_18_AGES.includes(c.ageGroup) && c.gender === 'Female').length;
+    const o18M = cases.filter(c => c.specialGroup === sg && OVER_18_AGES.includes(c.ageGroup) && c.gender === 'Male').length;
+    sumRows.push([sg, u18F, u18M, o18F, o18M, u18F + u18M + o18F + o18M]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumRows), 'Summary Tables');
+
+  const matHeader = ['#', 'Diagnosis'];
+  AGE_LABELS_SHORT.forEach(a => matHeader.push(`New ${a} (F)`, `New ${a} (M)`));
+  AGE_LABELS_SHORT.forEach(a => matHeader.push(`FollowUp ${a} (F)`, `FollowUp ${a} (M)`));
+  matHeader.push('Total F', 'Total M', 'Total ALL');
+  SPECIAL_GROUPS.forEach(sg => matHeader.push(`${sg} (F)`, `${sg} (M)`));
+
+  const matRows = [matHeader];
+  DIAGNOSES.forEach(d => {
+    const dCases = cases.filter(c => c.diagId === d.id);
+    const r = [d.id, d.name];
+    AGE_GROUPS.forEach(ag => {
+      r.push(dCases.filter(c => c.caseType === 'New' && c.ageGroup === ag && c.gender === 'Female').length);
+      r.push(dCases.filter(c => c.caseType === 'New' && c.ageGroup === ag && c.gender === 'Male').length);
+    });
+    AGE_GROUPS.forEach(ag => {
+      r.push(dCases.filter(c => c.caseType === 'Follow up' && c.ageGroup === ag && c.gender === 'Female').length);
+      r.push(dCases.filter(c => c.caseType === 'Follow up' && c.ageGroup === ag && c.gender === 'Male').length);
+    });
+    const tf = dCases.filter(c => c.gender === 'Female').length;
+    const tm = dCases.filter(c => c.gender === 'Male').length;
+    r.push(tf, tm, tf + tm);
+    SPECIAL_GROUPS.forEach(sg => {
+      r.push(dCases.filter(c => c.specialGroup === sg && c.gender === 'Female').length);
+      r.push(dCases.filter(c => c.specialGroup === sg && c.gender === 'Male').length);
+    });
+    matRows.push(r);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(matRows), 'Morbidity Form 1-55');
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  shareOrDownloadBlob(blob, `Morbidity_Report_${dateStr}.xlsx`, blob.type, forceShare);
+}
+
+// طباعة/حفظ PDF أصلي عبر محرك النظام (أعلى دقة ممكنة 100% Vector)
+function printNativePDF() {
+  switchTab('report');
+  setTimeout(() => { window.print(); }, 250);
+}
+
+// تصدير ملف PDF مباشر ومضبوط الأبعاد (بدون قص للأعمدة الـ 37)
+async function exportPDF(forceShare) {
+  switchTab('report');
+  renderReports();
+  const dateStr = document.getElementById('workDate').value;
+  const el = document.getElementById('printableReportArea');
+
+  if (typeof html2pdf === 'undefined') {
+    printNativePDF();
+    return;
+  }
+
+  showToast('⏳ جاري تنسيق وتوليد ملف الـ PDF بدقة عالية...');
+
+  // تفعيل وضع العرض الكامل (1550px) مؤقتاً لالتقاط جميع الأعمدة الـ 37 بدون شريط تمرير
+  el.classList.add('pdf-export-mode');
+  window.scrollTo(0, 0);
+
+  const opt = {
+    margin: [6, 6, 6, 6],
+    filename: `Morbidity_Report_${dateStr}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      scrollX: 0,
+      scrollY: 0,
+      windowWidth: 1600,
+      width: 1550
+    },
+    jsPDF: { unit: 'mm', format: 'a3', orientation: 'landscape' },
+    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+  };
+
+  try {
+    const blob = await html2pdf().set(opt).from(el).outputPdf('blob');
+    el.classList.remove('pdf-export-mode');
+    shareOrDownloadBlob(blob, `Morbidity_Report_${dateStr}.pdf`, 'application/pdf', forceShare);
+  } catch (err) {
+    el.classList.remove('pdf-export-mode');
+    printNativePDF();
+  }
+}
+
+function downloadBackup() {
+  const blob = new Blob([JSON.stringify(allCases, null, 2)], { type: 'application/json' });
+  const dateStr = document.getElementById('workDate').value;
+  shareOrDownloadBlob(blob, `Morbidity_Backup_${dateStr}.json`, 'application/json', false);
+}
+
+function restoreBackup(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (Array.isArray(data)) {
+        allCases = data;
+        saveToStorage();
+        onDateChange();
+        showToast('✅ تمت استعادة البيانات بنجاح');
+      }
+    } catch(err) {
+      showToast('⚠️ ملف النسخة الاحتياطية غير صالح');
+    }
+  };
+  reader.readAsText(file);
+}
+
+window.addEventListener('DOMContentLoaded', initApp);
+</script>
+</body>
+</html>
