@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
       - name: 1. Checkout Repository
@@ -24,22 +24,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 4. Setup Android SDK & Environment
-        uses: android-actions/setup-android@v3
-
-      - name: 5. Accept Licenses & Install Android 34 Tools
+      - name: 4. Accept Pre-installed Android Licenses
         run: |
-          export ANDROID_HOME=$ANDROID_SDK_ROOT
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: 6. Setup Gradle 8.7
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.7'
-
-      - name: 7. Create Cordova App & Bundle Offline Libraries
+      - name: 5. Create App & Bundle Libraries
         run: |
           npm install -g cordova
           cordova create app com.clinic.morbidity "MorbidityTracker"
@@ -57,15 +46,14 @@ jobs:
           sed -i 's|https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js|lib/xlsx.full.min.js|g' app/www/index.html
           sed -i 's|https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js|lib/html2pdf.bundle.min.js|g' app/www/index.html
 
-      - name: 8. Build Android APK
+      - name: 6. Build Android APK
         run: |
-          export ANDROID_HOME=$ANDROID_SDK_ROOT
           cd app
           cordova platform add android@13.0.0
           cordova build android --debug
           cp platforms/android/app/build/outputs/apk/debug/app-debug.apk ../MorbidityTracker.apk
 
-      - name: 9. Upload Ready APK
+      - name: 7. Upload Ready APK
         uses: actions/upload-artifact@v4
         with:
           name: MorbidityTracker-APK
