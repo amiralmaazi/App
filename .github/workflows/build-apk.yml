@@ -24,11 +24,13 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 4. Setup Android SDK
+      - name: 4. Setup Android SDK & Environment
         uses: android-actions/setup-android@v3
 
-      - name: 5. Accept Android Licenses & Install Build Tools
+      - name: 5. Accept Licenses & Install Android 34 Tools
         run: |
+          export ANDROID_HOME=$ANDROID_SDK_ROOT
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           yes | sdkmanager --licenses || true
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
@@ -42,7 +44,6 @@ jobs:
           npm install -g cordova
           cordova create app com.clinic.morbidity "MorbidityTracker"
           
-          # البحث عن ملف HTML في المستودع ونسخه تلقائياً حتى لو كان اسمه مختلفاً
           if [ -f "index.html" ]; then
             cp index.html app/www/index.html
           else
@@ -58,9 +59,10 @@ jobs:
 
       - name: 8. Build Android APK
         run: |
+          export ANDROID_HOME=$ANDROID_SDK_ROOT
           cd app
           cordova platform add android@13.0.0
-          cordova build android --debug -- -- --jvmargs="-Xmx2048m"
+          cordova build android --debug
           cp platforms/android/app/build/outputs/apk/debug/app-debug.apk ../MorbidityTracker.apk
 
       - name: 9. Upload Ready APK
