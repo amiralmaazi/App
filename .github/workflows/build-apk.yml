@@ -5,6 +5,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-android:
     runs-on: ubuntu-22.04
@@ -13,13 +16,13 @@ jobs:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Setup Node.js 20
+      - name: 2. Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: 3. Setup Java JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -35,12 +38,13 @@ jobs:
           
           cp index.html app/www/index.html
           
-          # تفعيل AndroidX وصلاحيات مشاركة الملفات في أندرويد 11-14
+          # تفعيل AndroidX وصلاحيات مشاركة الملفات
           sed -i 's|</widget>|    <preference name="AndroidXEnabled" value="true" />\n    <preference name="AndroidInsecureFileModeEnabled" value="true" />\n</widget>|g' app/config.xml
 
-          # دمج الأيقونة المخصصة إذا كانت مرفوعة باسم icon.png
+          # فحص وتحويل أيقونة التطبيق تلقائياً لمقاس قياسي 512x512 بصيغة PNG لمنع فشل البناء
           if [ -f "icon.png" ]; then
-            cp icon.png app/icon.png
+            sudo apt-get update && sudo apt-get install -y imagemagick
+            convert icon.png -resize 512x512\! app/icon.png || cp icon.png app/icon.png
             sed -i 's|</widget>|    <icon src="icon.png" />\n</widget>|g' app/config.xml
           fi
 
@@ -50,7 +54,6 @@ jobs:
 
           cd app
           cordova plugin add cordova-plugin-x-socialsharing
-          cordova plugin add cordova-plugin-printer
 
       - name: 6. Build Android APK
         run: |
