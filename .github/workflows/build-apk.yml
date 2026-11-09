@@ -28,14 +28,17 @@ jobs:
         run: |
           yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: 5. Create App, Set Custom Icon & Bundle Libraries
+      - name: 5. Create App, Set Custom Icon & Bundle Offline Libraries
         run: |
           npm install -g cordova
           cordova create app com.clinic.morbidity "MorbidityTracker"
           
           cp index.html app/www/index.html
           
-          # دمج الأيقونة الجديدة إذا تم رفعها للمستودع باسم icon.png
+          # تفعيل AndroidX وصلاحيات مشاركة الملفات في أندرويد 11-14
+          sed -i 's|</widget>|    <preference name="AndroidXEnabled" value="true" />\n    <preference name="AndroidInsecureFileModeEnabled" value="true" />\n</widget>|g' app/config.xml
+
+          # دمج الأيقونة المخصصة إذا كانت مرفوعة باسم icon.png
           if [ -f "icon.png" ]; then
             cp icon.png app/icon.png
             sed -i 's|</widget>|    <icon src="icon.png" />\n</widget>|g' app/config.xml
@@ -44,11 +47,10 @@ jobs:
           mkdir -p app/www/lib
           curl -sL https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js -o app/www/lib/xlsx.full.min.js
           curl -sL https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js -o app/www/lib/html2pdf.bundle.min.js
-          sed -i 's|https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js|lib/xlsx.full.min.js|g' app/www/index.html
-          sed -i 's|https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js|lib/html2pdf.bundle.min.js|g' app/www/index.html
 
           cd app
           cordova plugin add cordova-plugin-x-socialsharing
+          cordova plugin add cordova-plugin-printer
 
       - name: 6. Build Android APK
         run: |
