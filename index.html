@@ -9,12 +9,12 @@
 <title>Daily Morbidity Form Tracker Pro</title>
 <link rel="manifest" href="manifest.json">
 
-<!-- جسر أندرويد الأساسي لعمل الحفظ والمشاركة داخل APK -->
+<!-- جسر أندرويد الأساسي لعمل الحفظ والمشاركة والطباعة داخل APK -->
 <script src="cordova.js"></script>
 
-<!-- المكتبات الخارجية -->
-<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js" onerror="this.src='lib/xlsx.full.min.js'"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" onerror="this.src='lib/html2pdf.bundle.min.js'"></script>
+<!-- المكتبات الخارجية (تعمل أونلاين في الموقع وأوفلاين داخل الـ APK) -->
+<script src="lib/xlsx.full.min.js" onerror="this.src='https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js'"></script>
+<script src="lib/html2pdf.bundle.min.js" onerror="this.src='https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js'"></script>
 
 <style>
   :root {
@@ -79,14 +79,13 @@
   .card { background: var(--card); border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
   .section-title { font-size: 14px; font-weight: 900; margin: 0 0 10px 0; color: #0f172a; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
 
-  /* زر تثبيت الخيارات للسرعة (Pin Toggle) */
+  /* زر التثبيت (Pin) */
   .pin-btn {
     border: 1.5px solid #cbd5e1; background: #f8fafc; color: #475569; padding: 4px 10px;
     border-radius: 999px; font-size: 11.5px; font-weight: 800; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
   }
   .pin-btn.pinned { background: #fef08a; border-color: #ca8a04; color: #854d0e; }
 
-  /* شريط تنبيه وضع التعديل */
   .edit-mode-banner {
     background: #fffbeb; border: 2px solid #f59e0b; color: #92400e; padding: 10px 14px;
     border-radius: 10px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;
@@ -214,6 +213,17 @@
   }
   .studio-paper .diag-name-cell { min-width: var(--pdf-diag-width) !important; max-width: var(--pdf-diag-width) !important; white-space: normal !important; }
 
+  /* منصة التصوير المعزولة للـ PDF داخل الـ APK لمنع أي قص أو صفحات فارغة */
+  #pdfRenderStage {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: -9999;
+    background: #ffffff;
+    pointer-events: none;
+    opacity: 0;
+  }
+
   /* النوافذ المنبثقة */
   .modal-backdrop {
     position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); z-index: 3500;
@@ -236,13 +246,13 @@
   .Capture-Overlay {
     position: fixed; inset: 0; background: rgba(15, 23, 42, 0.92); color: #fff;
     z-index: 9000; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    font-weight: 900; font-size: 16px; gap: 12px;
+    font-weight: 900; font-size: 16px; gap: 12px; text-align: center; padding: 20px;
   }
 
   @media print {
     @page { size: A4 portrait; margin: 4mm; }
     body { background: #fff !important; padding: 0 !important; margin: 0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .app-header, .tabs, #tab-entry, .no-print, .studio-header, .studio-controls, #backupModal, #facilityModal { display: none !important; }
+    .app-header, .tabs, #tab-entry, .no-print, .studio-header, .studio-controls, #backupModal, #facilityModal, #pdfRenderStage { display: none !important; }
     .studio-backdrop { position: static !important; background: #fff !important; overflow: visible !important; display: block !important; }
     .studio-viewport { background: #fff !important; padding: 0 !important; overflow: visible !important; display: block !important; }
     .studio-paper-scaler { transform: none !important; }
@@ -261,14 +271,15 @@
 <body>
 
 <div id="toast" class="toast"></div>
+<div id="pdfRenderStage"></div>
 
 <div id="captureOverlay" class="Capture-Overlay hidden">
-  <div style="font-size:32px;">⚙️</div>
-  <div id="captureStatusText">جاري تصوير وبناء ملف الـ PDF الرسمي بدقة عالية...</div>
+  <div style="font-size:36px;">⚙️</div>
+  <div id="captureStatusText">جاري تجهيز وتوليد الملف الرسمي بدقة عالية...</div>
 </div>
 
 <!-- =========================================================================
-     نافذة إعدادات الترويسة والتوقيع الرسمي للمنشأة (Facility & Sign-off Modal)
+     نافذة إعدادات الترويسة والتوقيع الرسمي للمنشأة
      ========================================================================= -->
 <div id="facilityModal" class="modal-backdrop hidden">
   <div class="modal-card">
@@ -292,7 +303,7 @@
     <div class="grid-2">
       <div class="form-group">
         <label>اسم المرفق الصحي / العيادة (Health Facility):</label>
-        <input type="text" id="facName" class="form-input" placeholder="مثال: Al-Salam Health Center / Mobile Clinic">
+        <input type="text" id="facName" class="form-input" placeholder="مثال: Al-Salam Health Center">
       </div>
       <div class="form-group">
         <label>الجهة / المنظمة (Organization / MoPHP):</label>
@@ -324,9 +335,9 @@
       <span style="font-size:15px; font-weight:900;">📐 استوديو معاينة وضبط مقاسات الـ PDF الرسمي</span>
     </div>
     <div style="display:flex; gap:6px; flex-wrap:wrap;">
-      <button class="btn-action btn-facility" onclick="closePdfStudio(); openFacilityModal();">⚙️ تعديل الترويسة والتوقيع</button>
+      <button class="btn-action btn-facility" onclick="closePdfStudio(); openFacilityModal();">⚙️ الترويسة</button>
       <button class="btn-action btn-excel" onclick="exportFinalPDF()">💾 حفظ / مشاركة PDF</button>
-      <button class="btn-action btn-share" onclick="window.print()">🖨️ طباعة عبر النظام</button>
+      <button class="btn-action btn-share" onclick="triggerSmartPrint()">🖨️ طباعة مباشرة</button>
       <button class="btn-action btn-pdf" onclick="closePdfStudio()">✖ إغلاق</button>
     </div>
   </div>
@@ -384,7 +395,7 @@
         1. حفظ نسخة احتياطية من البيانات الحالية (<span id="modalTotalCases">0</span> حالة):
       </div>
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
-        <button class="btn-action btn-excel" style="flex:1;" onclick="exportBackupFile()">📥 حفظ ملف نسخة (.json)</button>
+        <button class="btn-action btn-excel" style="flex:1;" onclick="exportBackupFile()">📥 حفظ / مشاركة ملف (.json)</button>
         <button class="btn-action btn-share" style="flex:1;" onclick="copyBackupToClipboard()">📋 نسخ الكود للحافظة</button>
       </div>
     </div>
@@ -428,7 +439,7 @@
     <input type="date" id="workDate" class="date-input" onchange="onDateChange()">
     <span id="dayNameLabel" style="font-size:12px; font-weight:800; color:#fef08a;"></span>
     <div style="flex:1"></div>
-    <button class="btn-action btn-facility" onclick="openFacilityModal()">⚙️ بيانات المنشأة</button>
+    <button class="btn-action btn-facility" onclick="openFacilityModal()">⚙️ المنشأة</button>
     <button class="btn-action btn-excel" onclick="exportExcelWorkbook()">📊 Excel</button>
     <button class="btn-action btn-pdf" onclick="openPdfStudio()">📐 معاينة و PDF</button>
     <button class="btn-action btn-backup" onclick="openBackupModal()">💾 نسخ / استعادة</button>
@@ -444,7 +455,6 @@
   <!-- تبويب الإدخال السريع + السجل -->
   <div id="tab-entry">
 
-    <!-- شريط تنبيه يظهر فقط عند تعديل حالة سابقة -->
     <div id="editModeBanner" class="edit-mode-banner hidden">
       <span id="editModeText">✏️ وضع التعديل: جاري تعديل الحالة رقم #1</span>
       <button class="btn-action btn-backup" style="padding:5px 10px;" onclick="cancelEditCase()">✖ إلغاء التعديل</button>
@@ -500,7 +510,6 @@
         <span id="selectedDiagBadge" style="color:var(--primary); font-size:12px;">لم يتم الاختيار</span>
       </div>
 
-      <!-- شريط الوصول السريع لأكثر 6 تشخيصات تردداً في العيادة -->
       <div class="quick-picks-wrap">
         <div class="quick-picks-title">
           <span>⚡ الأكثر شيوعاً في عيادتك (اختيار سريع بلمسة واحدة):</span>
@@ -517,7 +526,7 @@
       <button id="mainSaveBtn" class="btn-save-case" onclick="saveCase()">✅ حفظ الحالة وإضافتها للسجل التسلسلي بالأسفل</button>
     </div>
 
-    <!-- السجل التسلسلي المباشر أسفل الإدخال مع زر التعديل السريع -->
+    <!-- السجل التسلسلي المباشر أسفل الإدخال -->
     <div class="card">
       <div class="section-title">
         <span>📋 سجل الحالات المدخلة (مع إمكانية التعديل الفوري ✏️)</span>
@@ -568,7 +577,7 @@
     </div>
 
     <div id="printableReportArea" style="background:#fff; padding:10px; border-radius:8px; direction:ltr;">
-      <!-- الترويسة الرسمية للمنشأة الصحية (Official Header) -->
+      <!-- الترويسة الرسمية للمنشأة الصحية -->
       <div class="official-header-box">
         <div class="official-title-row">
           <div style="text-align:left;">
@@ -611,7 +620,7 @@
       <h3 style="font-size:9.5px; margin:4px 0 2px; text-align:left; color:#0f172a;">3. Daily Morbidity Matrix (Diagnoses 1 - 55)</h3>
       <div class="table-scroll" id="morbidityMatrixWrap" style="margin-bottom:0;"></div>
 
-      <!-- التذييل الرسمي والتوقيع (Official Sign-off Footer) -->
+      <!-- التذييل الرسمي والتوقيع -->
       <div class="official-footer-box">
         <div class="sign-block">
           <strong>Prepared By (مُعد التقرير):</strong>
@@ -625,7 +634,7 @@
         </div>
         <div class="sign-block">
           <strong>Verification & Export Info (بيانات الاستخراج):</strong>
-          <div>Total Recorded Cases: <strong id="ftrTotalCases">0</strong></div>
+          <div>Total Recorded Cases: <strong id="ftrTotalCases">0</strong> (<span id="ftrGenderSplit">F: 0 | M: 0</span>)</div>
           <div>Generated On: <span id="ftrTimestamp" style="font-weight:800;"></span></div>
         </div>
       </div>
@@ -666,9 +675,7 @@ const DIAGNOSES = [
   { id: 54, name: "Malnutrition" }, { id: 55, name: "Others" }
 ];
 
-// التشخيصات الافتراضية الأكثر شيوعاً قبل بدء الإدخال
 const DEFAULT_TOP_DIAGS = [1, 2, 9, 33, 35, 39];
-
 const STORAGE_KEY = 'MORBIDITY_RECORDS_V4';
 const FACILITY_KEY = 'MORBIDITY_FACILITY_V1';
 const PINS_KEY = 'MORBIDITY_PINS_V1';
@@ -678,6 +685,7 @@ let allCases = [];
 let currentForm = { gender: '', ageGroup: '', caseType: 'New', specialGroup: 'Non', diagId: null };
 let pinnedState = { caseType: false, specialGroup: false };
 let editingUid = null;
+let isCordovaReady = false;
 
 let facilityProfile = {
   gov: '',
@@ -687,6 +695,10 @@ let facilityProfile = {
   reporter: '',
   title: 'Medical Doctor'
 };
+
+document.addEventListener('deviceready', () => {
+  isCordovaReady = true;
+}, false);
 
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -703,7 +715,7 @@ function getArabicDayName(dateStr) {
 }
 
 // =========================================================================
-// 1. إدارة بيانات المنشأة والتوقيع الرسمي (Facility Profile)
+// 1. إدارة بيانات المنشأة والتوقيع الرسمي
 // =========================================================================
 function loadFacilitySettings() {
   try {
@@ -747,7 +759,7 @@ function saveFacilitySettings() {
 }
 
 // =========================================================================
-// 2. ميزات السرعة الفائقة: التثبيت (Pin) + الأكثر شيوعاً (Quick-Picks) + التعديل
+// 2. ميزات السرعة الفائقة: التثبيت + الأكثر شيوعاً + التعديل السريع
 // =========================================================================
 function togglePin(field) {
   pinnedState[field] = !pinnedState[field];
@@ -813,7 +825,7 @@ function startEditCase(uid) {
   saveBtn.classList.add('edit-active');
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
-  showToast(`✏️ يمكنك الآن تعديل بيانات الحالة #${target.serial} ثم الضغط على حفظ`);
+  showToast(`✏️ عدّل بيانات الحالة #${target.serial} ثم اضغط حفظ`);
 }
 
 function cancelEditCase() {
@@ -843,8 +855,23 @@ function resetFormAfterSave() {
 }
 
 // =========================================================================
-// 3. تطبيع السجلات وإدارة التخزين الدائم
+// 3. تطبيع السجلات (تم إصلاح خطأ Female/Male الجذري هنا)
 // =========================================================================
+function parseGenderStrict(rawVal, diagIdNum) {
+  // الأمراض 48 و 49 (أمراض الحمل والنساء) هي إناث حتماً
+  if (diagIdNum === 48 || diagIdNum === 49) return 'Female';
+
+  const g = String(rawVal ?? 'Female').toLowerCase().trim();
+  // فحص الإناث أولاً لأن كلمة female تحتوي على كلمة male بداخلها!
+  if (g === 'female' || g === 'f' || g.startsWith('fem') || g.includes('أنثى') || g.includes('انثى') || g.includes('أنث') || g.includes('انث')) {
+    return 'Female';
+  }
+  if (g === 'male' || g === 'm' || g === 'ذكر') {
+    return 'Male';
+  }
+  return 'Female';
+}
+
 function normalizeRecord(r, idx) {
   if (!r || typeof r !== 'object') return null;
 
@@ -876,8 +903,7 @@ function normalizeRecord(r, idx) {
   else if (rawSpec.includes('mig') || rawSpec.includes('مهاجر')) sg = 'Migrants';
   else if (rawSpec.includes('dis') || rawSpec.includes('إعاق')) sg = 'Disability';
 
-  let rawGen = String(r.gender ?? r['Gender'] ?? r['الجنس'] ?? 'Female').toLowerCase().trim();
-  let gen = (rawGen === 'male' || rawGen === 'm' || rawGen.includes('ذكر') || rawGen.includes('male')) ? 'Male' : 'Female';
+  let gen = parseGenderStrict(r.gender ?? r['Gender'] ?? r['الجنس'], diagObj.id);
 
   let rawDate = String(r.date ?? r['Date'] ?? r['التاريخ'] ?? new Date().toISOString().split('T')[0]).trim();
   let dateStr = rawDate.slice(0, 10);
@@ -931,7 +957,14 @@ function loadFromStorage(cb) {
     if (!raw) return;
     try {
       const arr = JSON.parse(raw);
-      if (Array.isArray(arr) && arr.length > bestData.length) bestData = arr;
+      if (Array.isArray(arr)) {
+        // تفضيل المصفوفة التي تحتوي على تنوع الإناث والذكور إذا تساوى العدد
+        const hasFemales = arr.some(x => String(x.gender || '').toLowerCase().startsWith('f'));
+        const bestHasFemales = bestData.some(x => String(x.gender || '').toLowerCase().startsWith('f'));
+        if (arr.length > bestData.length || (arr.length === bestData.length && hasFemales && !bestHasFemales)) {
+          bestData = arr;
+        }
+      }
     } catch(e){}
   };
 
@@ -1024,6 +1057,10 @@ function selectOption(group, val) {
 
 function selectDiagnosis(id) {
   currentForm.diagId = id;
+  // إذا اختار الطبيب تشخيص حمل أو أمراض نساء (48 أو 49) يتم تحديد الجنس Female تلقائياً
+  if (id === 48 || id === 49) {
+    selectOption('gender', 'Female');
+  }
   const d = DIAGNOSES.find(x => x.id === id);
   document.getElementById('selectedDiagBadge').textContent = d ? `#${d.id} ${d.name}` : 'لم يتم الاختيار';
   renderDiagList();
@@ -1062,8 +1099,8 @@ function saveCase() {
 
   const dateStr = document.getElementById('workDate').value;
   const diagObj = DIAGNOSES.find(x => x.id === currentForm.diagId);
+  const strictGender = (currentForm.gender === 'Male') ? 'Male' : 'Female';
 
-  // إذا كنا في وضع تعديل حالة سابقة
   if (editingUid) {
     const idx = allCases.findIndex(c => c.uid === editingUid);
     if (idx !== -1) {
@@ -1071,7 +1108,7 @@ function saveCase() {
         ...allCases[idx],
         date: dateStr,
         dayName: getArabicDayName(dateStr),
-        gender: currentForm.gender,
+        gender: strictGender,
         ageGroup: currentForm.ageGroup,
         caseType: currentForm.caseType,
         specialGroup: currentForm.specialGroup,
@@ -1088,7 +1125,6 @@ function saveCase() {
     }
   }
 
-  // إضافة حالة جديدة
   const dayCases = getDayCases();
   const serial = dayCases.length + 1;
   const timeStr = new Date().toTimeString().split(' ')[0].slice(0,5);
@@ -1096,7 +1132,7 @@ function saveCase() {
   allCases.push({
     uid: Date.now() + '_' + Math.random().toString(36).slice(2,7),
     serial, date: dateStr, dayName: getArabicDayName(dateStr), time: timeStr,
-    gender: currentForm.gender, ageGroup: currentForm.ageGroup,
+    gender: strictGender, ageGroup: currentForm.ageGroup,
     caseType: currentForm.caseType, specialGroup: currentForm.specialGroup,
     diagId: diagObj.id, diagName: diagObj.name
   });
@@ -1106,7 +1142,7 @@ function saveCase() {
   updateCountsAndSerial();
   renderDailyLog();
   renderReports();
-  showToast(`✅ تم حفظ الحالة رقم #${serial} بنجاح`);
+  showToast(`✅ تم حفظ الحالة رقم #${serial} (${strictGender === 'Female' ? 'أنثى' : 'ذكر'})`);
 }
 
 function switchTab(tab) {
@@ -1115,6 +1151,17 @@ function switchTab(tab) {
   document.getElementById('tabBtnReport').classList.toggle('active', tab === 'report');
   if (tab === 'report') renderReports();
   if (tab === 'entry') renderDailyLog();
+}
+
+// ميزة تبديل الجنس السريع بنقرة واحدة من جدول السجل لتصحيح أي حالة سابقة فوراً
+function quickToggleGender(uid) {
+  const target = allCases.find(c => c.uid === uid);
+  if (!target) return;
+  target.gender = (target.gender === 'Female') ? 'Male' : 'Female';
+  saveToStorage();
+  renderDailyLog();
+  renderReports();
+  showToast(`🔄 تم تغيير جنس الحالة #${target.serial} إلى ${target.gender}`);
 }
 
 function renderDailyLog() {
@@ -1129,7 +1176,11 @@ function renderDailyLog() {
       <td><span class="badge-serial">#${c.serial}</span></td>
       <td>${c.time}</td>
       <td>${c.date}</td>
-      <td><strong>${c.gender === 'Female' ? '👩 F' : '👨 M'}</strong></td>
+      <td>
+        <span onclick="quickToggleGender('${c.uid}')" style="cursor:pointer; padding:3px 8px; border-radius:6px; font-weight:900; display:inline-block; ${c.gender === 'Female' ? 'background:#fce7f3; color:#9d174d; border:1px solid #f472b6;' : 'background:#dbeafe; color:#1e40af; border:1px solid #60a5fa;'}" title="اضغط لتبديل الجنس فوراً">
+          ${c.gender === 'Female' ? '👩 Female' : '👨 Male'}
+        </span>
+      </td>
       <td dir="ltr"><strong>${c.ageGroup}</strong></td>
       <td>${c.caseType}</td>
       <td>${c.specialGroup}</td>
@@ -1172,28 +1223,39 @@ function nz(val) {
   return val > 0 ? `<td class="cell-nz">${val}</td>` : `<td>0</td>`;
 }
 
+function isFemaleCase(c) {
+  return String(c.gender || '').toLowerCase().trim().startsWith('f');
+}
+
+function isMaleCase(c) {
+  return !isFemaleCase(c);
+}
+
 function renderReports() {
   const cases = getScopedCases();
   const dateStr = document.getElementById('workDate').value;
   const scope = document.getElementById('reportScope').value;
 
-  // تحديث الترويسة والتذييل الرسمي للمنشأة
+  const totalFemalesCount = cases.filter(isFemaleCase).length;
+  const totalMalesCount = cases.filter(isMaleCase).length;
+
   document.getElementById('hdrGov').textContent = facilityProfile.gov || '____________________';
   document.getElementById('hdrDist').textContent = facilityProfile.dist || '____________________';
   document.getElementById('hdrFacility').textContent = facilityProfile.name || '____________________';
   document.getElementById('hdrOrgBadge').textContent = facilityProfile.org || 'MoPHP / Health Cluster';
   document.getElementById('hdrDateScope').textContent = scope === 'day'
     ? `${dateStr} (${getArabicDayName(dateStr)})`
-    : `Cumulative (${allCases.length} Cases)`;
+    : `Cumulative (${cases.length} Cases)`;
 
   document.getElementById('reportHeaderMeta').textContent =
     scope === 'day'
-      ? `DAILY REPORT | DATE: ${dateStr} | TOTAL RECORDED CASES: ${cases.length}`
-      : `CUMULATIVE REPORT (ALL SAVED DAYS) | TOTAL RECORDED CASES: ${cases.length}`;
+      ? `DAILY REPORT | DATE: ${dateStr} | TOTAL CASES: ${cases.length} (Females: ${totalFemalesCount} | Males: ${totalMalesCount})`
+      : `CUMULATIVE REPORT | TOTAL CASES: ${cases.length} (Females: ${totalFemalesCount} | Males: ${totalMalesCount})`;
 
   document.getElementById('ftrReporter').textContent = facilityProfile.reporter || '____________________';
   document.getElementById('ftrTitle').textContent = facilityProfile.title || '____________________';
   document.getElementById('ftrTotalCases').textContent = cases.length;
+  document.getElementById('ftrGenderSplit').textContent = `F: ${totalFemalesCount} | M: ${totalMalesCount}`;
   document.getElementById('ftrTimestamp').textContent = new Date().toISOString().slice(0, 16).replace('T', ' ');
 
   // 1. Beneficiaries Summary
@@ -1215,15 +1277,16 @@ function renderReports() {
     <tbody>`;
 
   ['Female', 'Male'].forEach(g => {
+    const checkGender = g === 'Female' ? isFemaleCase : isMaleCase;
     const gShort = g === 'Female' ? 'F' : 'M';
     let newTotal = 0, folTotal = 0;
     const newCells = AGE_GROUPS.map(ag => {
-      const cnt = cases.filter(c => c.gender === g && c.caseType === 'New' && c.ageGroup === ag).length;
+      const cnt = cases.filter(c => checkGender(c) && c.caseType === 'New' && c.ageGroup === ag).length;
       newTotal += cnt;
       return nz(cnt);
     }).join('');
     const folCells = AGE_GROUPS.map(ag => {
-      const cnt = cases.filter(c => c.gender === g && c.caseType === 'Follow up' && c.ageGroup === ag).length;
+      const cnt = cases.filter(c => checkGender(c) && c.caseType === 'Follow up' && c.ageGroup === ag).length;
       folTotal += cnt;
       return nz(cnt);
     }).join('');
@@ -1255,10 +1318,10 @@ function renderReports() {
     <tbody>`;
 
   SPECIAL_GROUPS.forEach(sg => {
-    const u18F = cases.filter(c => c.specialGroup === sg && UNDER_18_AGES.includes(c.ageGroup) && c.gender === 'Female').length;
-    const u18M = cases.filter(c => c.specialGroup === sg && UNDER_18_AGES.includes(c.ageGroup) && c.gender === 'Male').length;
-    const o18F = cases.filter(c => c.specialGroup === sg && OVER_18_AGES.includes(c.ageGroup) && c.gender === 'Female').length;
-    const o18M = cases.filter(c => c.specialGroup === sg && OVER_18_AGES.includes(c.ageGroup) && c.gender === 'Male').length;
+    const u18F = cases.filter(c => c.specialGroup === sg && UNDER_18_AGES.includes(c.ageGroup) && isFemaleCase(c)).length;
+    const u18M = cases.filter(c => c.specialGroup === sg && UNDER_18_AGES.includes(c.ageGroup) && isMaleCase(c)).length;
+    const o18F = cases.filter(c => c.specialGroup === sg && OVER_18_AGES.includes(c.ageGroup) && isFemaleCase(c)).length;
+    const o18M = cases.filter(c => c.specialGroup === sg && OVER_18_AGES.includes(c.ageGroup) && isMaleCase(c)).length;
     const tot = u18F + u18M + o18F + o18M;
     specHtml += `<tr>
       <td style="text-align:left; font-weight:800; padding-left:6px;">${sg}</td>
@@ -1319,20 +1382,20 @@ function renderReports() {
     let rowVals = [];
 
     AGE_GROUPS.forEach(ag => {
-      rowVals.push(dCases.filter(c => c.caseType === 'New' && c.ageGroup === ag && c.gender === 'Female').length);
-      rowVals.push(dCases.filter(c => c.caseType === 'New' && c.ageGroup === ag && c.gender === 'Male').length);
+      rowVals.push(dCases.filter(c => c.caseType === 'New' && c.ageGroup === ag && isFemaleCase(c)).length);
+      rowVals.push(dCases.filter(c => c.caseType === 'New' && c.ageGroup === ag && isMaleCase(c)).length);
     });
     AGE_GROUPS.forEach(ag => {
-      rowVals.push(dCases.filter(c => c.caseType === 'Follow up' && c.ageGroup === ag && c.gender === 'Female').length);
-      rowVals.push(dCases.filter(c => c.caseType === 'Follow up' && c.ageGroup === ag && c.gender === 'Male').length);
+      rowVals.push(dCases.filter(c => c.caseType === 'Follow up' && c.ageGroup === ag && isFemaleCase(c)).length);
+      rowVals.push(dCases.filter(c => c.caseType === 'Follow up' && c.ageGroup === ag && isMaleCase(c)).length);
     });
-    const totF = dCases.filter(c => c.gender === 'Female').length;
-    const totM = dCases.filter(c => c.gender === 'Male').length;
+    const totF = dCases.filter(isFemaleCase).length;
+    const totM = dCases.filter(isMaleCase).length;
     rowVals.push(totF, totM, totF + totM);
 
     SPECIAL_GROUPS.forEach(sg => {
-      rowVals.push(dCases.filter(c => c.specialGroup === sg && c.gender === 'Female').length);
-      rowVals.push(dCases.filter(c => c.specialGroup === sg && c.gender === 'Male').length);
+      rowVals.push(dCases.filter(c => c.specialGroup === sg && isFemaleCase(c)).length);
+      rowVals.push(dCases.filter(c => c.specialGroup === sg && isMaleCase(c)).length);
     });
 
     rowVals.forEach((v, i) => colSums[i] += v);
@@ -1353,51 +1416,57 @@ function renderReports() {
 }
 
 // =========================================================================
-// 4. المحرك الموحد لحفظ ومشاركة الملفات (يدعم Cordova APK + Web Share + Download)
+// 4. المحرك الجذري لحفظ ومشاركة وطباعة الملفات بدون FileReader (يعمل 100% في APK والموقع)
 // =========================================================================
-function blobToBase64Pure(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const res = String(reader.result || '');
-      const base64 = res.includes(',') ? res.split(',')[1] : res;
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+function base64ToBlob(b64Data, contentType) {
+  const byteCharacters = atob(b64Data);
+  const byteArrays = [];
+  for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+    const slice = byteCharacters.slice(offset, offset + 512);
+    const byteNumbers = new Array(slice.length);
+    for (let i = 0; i < slice.length; i++) {
+      byteNumbers[i] = slice.charCodeAt(i);
+    }
+    byteArrays.push(new Uint8Array(byteNumbers));
+  }
+  return new Blob(byteArrays, { type: contentType });
 }
 
-async function universalSaveOrShareFile(blob, filename, mimeType) {
+async function dispatchBase64File(pureBase64, filename, mimeType) {
+  // 1. إذا كنا داخل تطبيق الأندرويد APK (Cordova SocialSharing)
   if (window.plugins && window.plugins.socialsharing) {
-    try {
-      const b64 = await blobToBase64Pure(blob);
-      const fileDataUrl = `df:${filename};base64,${b64}`;
-      window.plugins.socialsharing.shareWithOptions(
-        {
-          message: filename,
-          subject: filename,
-          files: [fileDataUrl],
-          chooserTitle: 'اختر (حفظ في الجهاز / ملفاتي) أو أرسل عبر واتساب'
-        },
-        () => showToast('✅ تمت العملية بنجاح'),
-        err => showToast('⚠️ لم تكتمل المشاركة: ' + err)
-      );
-      return;
-    } catch (e) {}
+    const dfUri = `df:${filename};base64,${pureBase64}`;
+    window.plugins.socialsharing.shareWithOptions(
+      {
+        message: filename,
+        subject: filename,
+        files: [dfUri],
+        chooserTitle: 'اختر تطبيق لحفظ أو إرسال الملف'
+      },
+      () => showToast('✅ تمت مشاركة/حفظ الملف بنجاح'),
+      err => {
+        // محاولة ثانية بصيغة data: التقليدية إذا لزم الأمر
+        const fallbackUri = `data:${mimeType};base64,${pureBase64}`;
+        window.plugins.socialsharing.share(null, filename, fallbackUri, null);
+      }
+    );
+    return;
   }
 
+  // 2. إذا كنا في متصفح الهاتف الحديث (Web Share API)
+  const blob = base64ToBlob(pureBase64, mimeType);
   try {
     const file = new File([blob], filename, { type: mimeType });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file], title: filename });
-      showToast('✅ تمت مشاركة/حفظ الملف بنجاح');
+      showToast('✅ تمت مشاركة الملف بنجاح');
       return;
     }
   } catch (e) {
     if (e && e.name === 'AbortError') return;
   }
 
+  // 3. التنزيل المباشر في متصفح الموقع
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -1408,8 +1477,23 @@ async function universalSaveOrShareFile(blob, filename, mimeType) {
   showToast('📥 تم تنزيل الملف: ' + filename);
 }
 
+// الطباعة الذكية (تعمل في المتصفح وتعمل داخل تطبيق الـ APK عبر بلجن الطباعة أو توليد PDF)
+function triggerSmartPrint() {
+  if (window.cordova && cordova.plugins && cordova.plugins.printer) {
+    const htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${document.querySelector('style').innerHTML}</style></head><body style="direction:ltr;background:#fff;">${document.getElementById('studioPaper').outerHTML}</body></html>`;
+    cordova.plugins.printer.print(htmlContent, { name: 'Daily_Morbidity_Form', orientation: document.getElementById('ctrlOrientation').value });
+    return;
+  }
+  if (window.cordova || (window.plugins && window.plugins.socialsharing)) {
+    // إذا كان داخل APK، قم بتوليد ملف الـ PDF وفتح نافذة أندرويد لاختيار الطابعة أو الحفظ
+    exportFinalPDF();
+    return;
+  }
+  window.print();
+}
+
 // =========================================================================
-// 5. استوديو المعاينة وضبط الأحجام قبل تصدير الـ PDF
+// 5. استوديو المعاينة وتوليد الـ PDF المباشر (بدون Blob/FileReader)
 // =========================================================================
 function openPdfStudio() {
   renderReports();
@@ -1475,7 +1559,7 @@ async function exportFinalPDF() {
   const viewport = document.getElementById('studioViewport');
 
   if (typeof html2pdf === 'undefined') {
-    window.print();
+    showToast('⚠️ مكتبة الـ PDF غير محملة بعد');
     return;
   }
 
@@ -1487,7 +1571,7 @@ async function exportFinalPDF() {
   viewport.scrollTop = 0;
   viewport.scrollLeft = 0;
 
-  await new Promise(r => setTimeout(r, 150));
+  await new Promise(r => setTimeout(r, 200));
 
   const opt = {
     margin: [3, 3, 3, 3],
@@ -1498,7 +1582,7 @@ async function exportFinalPDF() {
       useCORS: true,
       scrollX: 0,
       scrollY: 0,
-      windowWidth: targetWidth + 40,
+      windowWidth: targetWidth + 30,
       width: targetWidth
     },
     jsPDF: { unit: 'mm', format: 'a4', orientation: orient },
@@ -1506,19 +1590,22 @@ async function exportFinalPDF() {
   };
 
   try {
-    const pdfBlob = await html2pdf().set(opt).from(studioPaper).outputPdf('blob');
+    // استخدام outputPdf('datauristring') لتجنب مشاكل Cordova FileReader مع الـ Blob نهائياً!
+    const pdfDataUri = await html2pdf().set(opt).from(studioPaper).outputPdf('datauristring');
     scaler.style.transform = prevTransform;
     overlay.classList.add('hidden');
-    await universalSaveOrShareFile(pdfBlob, `Morbidity_Form_${dateStr}.pdf`, 'application/pdf');
+
+    const pureBase64 = pdfDataUri.includes(',') ? pdfDataUri.split(',')[1] : pdfDataUri;
+    await dispatchBase64File(pureBase64, `Morbidity_Form_${dateStr}.pdf`, 'application/pdf');
   } catch (err) {
     scaler.style.transform = prevTransform;
     overlay.classList.add('hidden');
-    window.print();
+    showToast('⚠️ حدث خطأ أثناء توليد الـ PDF: ' + (err.message || err));
   }
 }
 
 // =========================================================================
-// 6. تصدير ملف الإكسل الاحترافي مع بيانات المنشأة الرسمية
+// 6. تصدير ملف الإكسل الاحترافي (مباشرة بصيغة Base64 متوافقة مع الـ APK)
 // =========================================================================
 async function exportExcelWorkbook() {
   if (typeof XLSX === 'undefined') { showToast('⚠️ مكتبة الإكسل غير جاهزة'); return; }
@@ -1526,12 +1613,10 @@ async function exportExcelWorkbook() {
   const dateStr = document.getElementById('workDate').value;
   const wb = XLSX.utils.book_new();
 
-  // الورقة 1: السجل التفصيلي
   const logRows = [['Serial #', 'Date', 'Day', 'Time', 'Gender', 'Age Group', 'Case Type', 'Special Group', 'Diagnosis #', 'Diagnosis Name']];
   cases.forEach(c => logRows.push([c.serial, c.date, c.dayName, c.time, c.gender, c.ageGroup, c.caseType, c.specialGroup, c.diagId, c.diagName]));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(logRows), 'Daily Cases Log');
 
-  // الورقة 2: معلومات المنشأة + ملخص المستفيدين والفئات الخاصة
   const sumRows = [
     ['OFFICIAL FACILITY & REPORT INFORMATION'],
     ['Governorate', facilityProfile.gov || '-', 'District', facilityProfile.dist || '-', 'Health Facility', facilityProfile.name || '-', 'Organization', facilityProfile.org || '-'],
@@ -1541,22 +1626,22 @@ async function exportExcelWorkbook() {
     ['Gender', ...AGE_LABELS_SHORT.map(a => 'New ' + a), 'Total New', ...AGE_LABELS_SHORT.map(a => 'FollowUp ' + a), 'Total FollowUp', 'Grand Total']
   ];
   ['Female', 'Male'].forEach(g => {
-    const newArr = AGE_GROUPS.map(ag => cases.filter(c => c.gender === g && c.caseType === 'New' && c.ageGroup === ag).length);
-    const folArr = AGE_GROUPS.map(ag => cases.filter(c => c.gender === g && c.caseType === 'Follow up' && c.ageGroup === ag).length);
+    const checkGender = g === 'Female' ? isFemaleCase : isMaleCase;
+    const newArr = AGE_GROUPS.map(ag => cases.filter(c => checkGender(c) && c.caseType === 'New' && c.ageGroup === ag).length);
+    const folArr = AGE_GROUPS.map(ag => cases.filter(c => checkGender(c) && c.caseType === 'Follow up' && c.ageGroup === ag).length);
     const nSum = newArr.reduce((a,b)=>a+b,0), fSum = folArr.reduce((a,b)=>a+b,0);
     sumRows.push([g === 'Female' ? 'F' : 'M', ...newArr, nSum, ...folArr, fSum, nSum + fSum]);
   });
   sumRows.push([], ['2. SPECIAL GROUPS SUMMARY (0-18 Y & >= 18 Y)'], ['Special Group', '0-18Y (F)', '0-18Y (M)', '>=18Y (F)', '>=18Y (M)', 'Total']);
   SPECIAL_GROUPS.forEach(sg => {
-    const u18F = cases.filter(c => c.specialGroup === sg && UNDER_18_AGES.includes(c.ageGroup) && c.gender === 'Female').length;
-    const u18M = cases.filter(c => c.specialGroup === sg && UNDER_18_AGES.includes(c.ageGroup) && c.gender === 'Male').length;
-    const o18F = cases.filter(c => c.specialGroup === sg && OVER_18_AGES.includes(c.ageGroup) && c.gender === 'Female').length;
-    const o18M = cases.filter(c => c.specialGroup === sg && OVER_18_AGES.includes(c.ageGroup) && c.gender === 'Male').length;
+    const u18F = cases.filter(c => c.specialGroup === sg && UNDER_18_AGES.includes(c.ageGroup) && isFemaleCase(c)).length;
+    const u18M = cases.filter(c => c.specialGroup === sg && UNDER_18_AGES.includes(c.ageGroup) && isMaleCase(c)).length;
+    const o18F = cases.filter(c => c.specialGroup === sg && OVER_18_AGES.includes(c.ageGroup) && isFemaleCase(c)).length;
+    const o18M = cases.filter(c => c.specialGroup === sg && OVER_18_AGES.includes(c.ageGroup) && isMaleCase(c)).length;
     sumRows.push([sg, u18F, u18M, o18F, o18M, u18F + u18M + o18F + o18M]);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumRows), 'Summary Tables');
 
-  // الورقة 3: مصفوفة الأمراض (1-55)
   const matHeader = ['#', 'Diagnosis'];
   AGE_LABELS_SHORT.forEach(a => matHeader.push(`New ${a} (F)`, `New ${a} (M)`));
   AGE_LABELS_SHORT.forEach(a => matHeader.push(`FollowUp ${a} (F)`, `FollowUp ${a} (M)`));
@@ -1568,27 +1653,27 @@ async function exportExcelWorkbook() {
     const dCases = cases.filter(c => Number(c.diagId) === d.id);
     const r = [d.id, d.name];
     AGE_GROUPS.forEach(ag => {
-      r.push(dCases.filter(c => c.caseType === 'New' && c.ageGroup === ag && c.gender === 'Female').length);
-      r.push(dCases.filter(c => c.caseType === 'New' && c.ageGroup === ag && c.gender === 'Male').length);
+      r.push(dCases.filter(c => c.caseType === 'New' && c.ageGroup === ag && isFemaleCase(c)).length);
+      r.push(dCases.filter(c => c.caseType === 'New' && c.ageGroup === ag && isMaleCase(c)).length);
     });
     AGE_GROUPS.forEach(ag => {
-      r.push(dCases.filter(c => c.caseType === 'Follow up' && c.ageGroup === ag && c.gender === 'Female').length);
-      r.push(dCases.filter(c => c.caseType === 'Follow up' && c.ageGroup === ag && c.gender === 'Male').length);
+      r.push(dCases.filter(c => c.caseType === 'Follow up' && c.ageGroup === ag && isFemaleCase(c)).length);
+      r.push(dCases.filter(c => c.caseType === 'Follow up' && c.ageGroup === ag && isMaleCase(c)).length);
     });
-    const tf = dCases.filter(c => c.gender === 'Female').length;
-    const tm = dCases.filter(c => c.gender === 'Male').length;
+    const tf = dCases.filter(isFemaleCase).length;
+    const tm = dCases.filter(isMaleCase).length;
     r.push(tf, tm, tf + tm);
     SPECIAL_GROUPS.forEach(sg => {
-      r.push(dCases.filter(c => c.specialGroup === sg && c.gender === 'Female').length);
-      r.push(dCases.filter(c => c.specialGroup === sg && c.gender === 'Male').length);
+      r.push(dCases.filter(c => c.specialGroup === sg && isFemaleCase(c)).length);
+      r.push(dCases.filter(c => c.specialGroup === sg && isMaleCase(c)).length);
     });
     matRows.push(r);
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(matRows), 'Morbidity Form 1-55');
 
-  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  await universalSaveOrShareFile(blob, `Morbidity_Report_${dateStr}.xlsx`, blob.type);
+  // توليد Base64 مباشرة من مكتبة XLSX بدون FileReader!
+  const pureBase64 = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+  await dispatchBase64File(pureBase64, `Morbidity_Report_${dateStr}.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }
 
 // =========================================================================
@@ -1604,11 +1689,15 @@ function closeBackupModal() {
   document.getElementById('backupModal').classList.add('hidden');
 }
 
+function utf8ToBase64(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
 async function exportBackupFile() {
   const dateStr = document.getElementById('workDate').value;
   const payload = JSON.stringify({ facility: facilityProfile, cases: allCases }, null, 2);
-  const blob = new Blob([payload], { type: 'application/json' });
-  await universalSaveOrShareFile(blob, `Morbidity_Backup_${dateStr}.json`, 'application/json');
+  const pureBase64 = utf8ToBase64(payload);
+  await dispatchBase64File(pureBase64, `Morbidity_Backup_${dateStr}.json`, 'application/json');
 }
 
 function copyBackupToClipboard() {
@@ -1667,7 +1756,9 @@ function commitRestoredRecords(rawArray) {
   onDateChange();
   renderQuickPicks();
   closeBackupModal();
-  showToast(`✅ تمت استعادة البيانات بنجاح! إجمالي الحالات الآن: ${allCases.length}`);
+  const fCount = allCases.filter(isFemaleCase).length;
+  const mCount = allCases.filter(isMaleCase).length;
+  showToast(`✅ تمت الاستعادة! الإجمالي: ${allCases.length} (إناث: ${fCount} | ذكور: ${mCount})`);
 }
 
 function parseSmartJsonText(rawText) {
@@ -1700,8 +1791,11 @@ function handleUniversalFileRestore(e) {
   if (!file) return;
   const fileName = file.name.toLowerCase();
 
+  // استخدام FileReader الأصلي للمتصفح لتفادي تعارض Cordova FileReader
+  const NativeReader = window.FileReader.REAL_READER || window.FileReader;
+  const reader = new NativeReader();
+
   if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.csv')) {
-    const reader = new FileReader();
     reader.onload = ev => {
       try {
         const data = new Uint8Array(ev.target.result);
@@ -1718,7 +1812,6 @@ function handleUniversalFileRestore(e) {
     return;
   }
 
-  const reader = new FileReader();
   reader.onload = ev => {
     const arr = parseSmartJsonText(ev.target.result);
     if (arr) {
